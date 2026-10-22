@@ -1,0 +1,31 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH deploy ke server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            cd ~/forum-api
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
+            npm ci --omit=dev
+            npm run migrate up
+            pm2 restart forum-api --update-env || pm2 start src/app.js --name forum-api
+            pm2 save
